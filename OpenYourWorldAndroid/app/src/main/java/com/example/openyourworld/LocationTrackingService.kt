@@ -100,7 +100,6 @@ class LocationTrackingService(context: Context, param: WorkerParameters) : Corou
             }
 
             // Log always shown now
-            Log.d(TAG, "Latitude = ${location.latitude}, Longitude = ${location.longitude}")
             GlobalVariables.latitude = location.latitude
             GlobalVariables.longitude = location.longitude
 

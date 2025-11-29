@@ -49,6 +49,18 @@ class FirstFragment : Fragment() {
     // onDestroyView.
     private val binding get() = _binding!!
 
+    private val handler = android.os.Handler()
+    private val locationLogger = object : Runnable {
+        override fun run() {
+            val lat = LocationTrackingService.GlobalVariables.latitude
+            val lon = LocationTrackingService.GlobalVariables.longitude
+
+            Log.d(TAG, "Live location: lat=$lat, lon=$lon")
+
+            handler.postDelayed(this, 1000)   // repeat every second
+        }
+    }
+
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
@@ -56,6 +68,16 @@ class FirstFragment : Fragment() {
 
         _binding = FragmentFirstBinding.inflate(inflater, container, false)
         return binding.root
+    }
+
+    override fun onResume() {
+        super.onResume()
+        handler.post(locationLogger)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        handler.removeCallbacks(locationLogger)
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -106,12 +128,11 @@ class FirstFragment : Fragment() {
             val radiusInMeters = 5.0
             val latitude = LocationTrackingService.GlobalVariables.latitude
             val longitude = LocationTrackingService.GlobalVariables.longitude
-            //Todo: check why the latitude is 0
-            Log.d(TAG, "latitude = " + latitude)
-            Log.d(TAG, "longitude = " + longitude)
+
+            Log.d(TAG, "Latitude = ${latitude}, Longitude = ${longitude}")
 
             // Draw current position
-            if (latitude != null || longitude != null) {
+            if (latitude != 0.0 && longitude != 0.0) {
                 drawPoint(map, latitude, longitude, radiusInMeters)
             }
 
