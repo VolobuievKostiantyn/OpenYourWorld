@@ -3,7 +3,6 @@ package com.example.openyourworld
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import android.graphics.Path
 import android.graphics.Point
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
@@ -27,7 +26,6 @@ import org.osmdroid.views.MapController
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Overlay
-import org.osmdroid.views.overlay.Polygon
 
 // Default position, for example, New York City
 private const val DEFAULT_LATITUDE_ON_MAP_VIEW = 40.7128
