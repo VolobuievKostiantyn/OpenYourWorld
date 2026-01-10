@@ -17,135 +17,87 @@
 package com.example.openyourworld
 
 import android.Manifest
-import android.annotation.SuppressLint
-import android.content.ComponentName
-import android.content.Context
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.Service
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
-import android.util.Log
-import androidx.compose.material3.Button
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalContext
+import android.os.IBinder
 import androidx.core.app.ActivityCompat
-import androidx.work.CoroutineWorker
-import androidx.work.Data
-import androidx.work.ExistingPeriodicWorkPolicy
-import androidx.work.ListenableWorker
-import androidx.work.OneTimeWorkRequest
-import androidx.work.PeriodicWorkRequestBuilder
-import androidx.work.WorkManager
-import androidx.work.WorkerParameters
-import androidx.work.multiprocess.RemoteListenableWorker
+import androidx.core.app.NotificationCompat
 import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationCallback
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
-import com.google.android.gms.tasks.CancellationTokenSource
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.suspendCancellableCoroutine
-import java.util.concurrent.TimeUnit
-import kotlin.coroutines.resume
 
-class LocationTrackingService(context: Context, params: WorkerParameters)
-    : CoroutineWorker(context, params) {
+class LocationTrackingService : Service() {
 
-    private val TAG = "LocationTrackingService"
-
-    private val locationClient: FusedLocationProviderClient =
-        LocationServices.getFusedLocationProviderClient(applicationContext)
-
-    object GlobalVariables {
-        var latitude: Double = 0.0
-        var longitude: Double = 0.0
+    companion object GlobalVariables {
+        @Volatile var latitude: Double = 0.0
+        @Volatile var longitude: Double = 0.0
     }
 
-    // MAIN LOOP — fetch GPS every 5 seconds
-    override suspend fun doWork(): Result {
-        Log.i(TAG, "Worker started")
+    private lateinit var fusedClient: FusedLocationProviderClient
+    private lateinit var callback: LocationCallback
 
-        if (!hasLocationPermission()) {
-            Log.e(TAG, "Permission missing!")
-            return Result.failure()
-        }
+    override fun onCreate() {
+        super.onCreate()
 
-        // Continuous 5-second updates
-        while (!isStopped) {
-            val location = getCurrentLocationSuspend()
+        fusedClient = LocationServices.getFusedLocationProviderClient(this)
 
-            if (location != null) {
-                GlobalVariables.latitude = location.latitude
-                GlobalVariables.longitude = location.longitude
-
-                //Todo: add the location to DB using LocationDatabaseHelper.kt
-
-                Log.d(TAG, "Updated location: ${location.latitude}, ${location.longitude}")
-
-                val db = LocationDatabaseHelper(applicationContext)
-                db.insertLocation(location.latitude, location.longitude)
+        callback = object : LocationCallback() {
+            override fun onLocationResult(result: LocationResult) {
+                val loc = result.lastLocation ?: return
+                latitude = loc.latitude
+                longitude = loc.longitude
             }
-
-            delay(5000) // <-- update every 5 seconds
         }
 
-        return Result.success()
+        startForegroundServiceInternal()
+        startLocationUpdates()
     }
 
-    private fun hasLocationPermission(): Boolean {
-        val ctx = applicationContext
-        return ActivityCompat.checkSelfPermission(ctx, Manifest.permission.ACCESS_FINE_LOCATION) ==
-                PackageManager.PERMISSION_GRANTED ||
-                ActivityCompat.checkSelfPermission(ctx, Manifest.permission.ACCESS_COARSE_LOCATION) ==
-                PackageManager.PERMISSION_GRANTED
+    private fun startLocationUpdates() {
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+            != PackageManager.PERMISSION_GRANTED
+        ) return
+
+        val request = LocationRequest.Builder(
+            Priority.PRIORITY_HIGH_ACCURACY,
+            5000L
+        ).build()
+
+        fusedClient.requestLocationUpdates(request, callback, mainLooper)
     }
 
-    @SuppressLint("MissingPermission")
-    private suspend fun getCurrentLocationSuspend() =
-        suspendCancellableCoroutine<android.location.Location?> { cont ->
-            val token = CancellationTokenSource()
-            locationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, token.token)
-                .addOnSuccessListener { cont.resume(it) }
-                .addOnFailureListener { cont.resume(null) }
+    private fun startForegroundServiceInternal() {
+        val channelId = "location_channel"
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                channelId,
+                "Location Tracking",
+                NotificationManager.IMPORTANCE_LOW
+            )
+            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
         }
 
-    // --- UI & WorkManager setup ---
-    @Composable
-    fun BgLocationAccessScreen() {
-        val context = LocalContext.current
-        val workManager = WorkManager.getInstance(context)
+        val notification = NotificationCompat.Builder(this, channelId)
+            .setContentTitle("Tracking location")
+            .setContentText("Location updates active")
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .build()
 
-        Button(onClick = {
-            enqueuePeriodicWork(context)
-        }) {
-            Text("Start Background Location")
-        }
+        startForeground(1, notification)
     }
 
-    private fun enqueuePeriodicWork(context: Context) {
-        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
-            "LocationTrackingService",
-            ExistingPeriodicWorkPolicy.KEEP,
-            PeriodicWorkRequestBuilder<LocationTrackingService>(
-                15, TimeUnit.MINUTES
-            ).build()
-        )
+    override fun onDestroy() {
+        fusedClient.removeLocationUpdates(callback)
+        super.onDestroy()
     }
 
-    companion object {
-        private const val LOCATION_UPDATE_INTERVAL = 5L
-
-        fun scheduleWork(context: Context) {
-            val componentName = ComponentName(context.packageName, LocationTrackingService::class.java.name)
-            val data = Data.Builder()
-                .putString(RemoteListenableWorker.ARGUMENT_PACKAGE_NAME, componentName.packageName)
-                .putString(RemoteListenableWorker.ARGUMENT_CLASS_NAME, componentName.className)
-                .build()
-
-            val request = OneTimeWorkRequest.Builder(LocationTrackingService::class.java)
-                .setInputData(data)
-                .setInitialDelay(LOCATION_UPDATE_INTERVAL, TimeUnit.SECONDS)
-                .build()
-
-            WorkManager.getInstance(context).enqueue(request)
-        }
-    }
+    override fun onBind(intent: Intent?): IBinder? = null
 }

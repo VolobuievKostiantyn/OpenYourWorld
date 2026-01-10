@@ -16,6 +16,7 @@
 
 package com.example.openyourworld
 
+import android.content.Intent
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -25,6 +26,7 @@ import android.graphics.PorterDuffXfermode
 import android.graphics.RadialGradient
 import android.graphics.RectF
 import android.graphics.Shader
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -33,7 +35,6 @@ import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import androidx.compose.ui.platform.ComposeView
 import androidx.fragment.app.Fragment
 import androidx.navigation.fragment.findNavController
 import com.example.openyourworld.databinding.FragmentFirstBinding
@@ -100,9 +101,12 @@ class FirstFragment : Fragment() {
         penumbraOverlay = PenumbraRevealOverlay()
         map.overlays.add(penumbraOverlay)
 
-        // Compose view starts Worker
-        view.findViewById<ComposeView>(R.id.compose_view).setContent {
-            LocationTrackingService.scheduleWork(requireContext().applicationContext)
+        val intent = Intent(requireContext(), LocationTrackingService::class.java)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            requireContext().startForegroundService(intent)
+        } else {
+            requireContext().startService(intent)
         }
 
         // Initial position
@@ -110,8 +114,8 @@ class FirstFragment : Fragment() {
 
         // CURRENT POSITION BUTTON
         binding.buttonCurrentPosition.setOnClickListener {
-            val lat = LocationTrackingService.GlobalVariables.latitude
-            val lon = LocationTrackingService.GlobalVariables.longitude
+            val lat = LocationTrackingService.latitude
+            val lon = LocationTrackingService.longitude
 
             Log.d(TAG, "Button press — live lat=$lat lon=$lon")
 
