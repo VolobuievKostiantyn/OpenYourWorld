@@ -67,8 +67,7 @@ class FirstFragment : Fragment() {
             val lat = LocationTrackingService.GlobalVariables.latitude
             val lon = LocationTrackingService.GlobalVariables.longitude
 
-            // Todo: find out why Live location: lat=0.0, lon=0.0
-
+            // Update map for each position
             Log.d(TAG, "Live location: lat=$lat, lon=$lon")
 
             handler.postDelayed(this, 1000) // update every second
