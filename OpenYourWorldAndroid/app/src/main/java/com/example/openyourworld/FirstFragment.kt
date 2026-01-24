@@ -70,7 +70,7 @@ class FirstFragment : Fragment() {
             // Update map for each position
             Log.d(TAG, "Live location: lat=$lat, lon=$lon")
 
-            handler.postDelayed(this, 1000) // update every second
+            handler.postDelayed(this, 2000) // update every 2 seconds
         }
     }
 
