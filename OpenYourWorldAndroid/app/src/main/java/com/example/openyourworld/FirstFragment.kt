@@ -119,6 +119,7 @@ class FirstFragment : Fragment() {
             Log.d(TAG, "Button press — live lat=$lat lon=$lon")
 
             if (lat != 0.0 && lon != 0.0) {
+                // Todo: set default zoom to current value
                 setPositionMarker(lat, lon, DEFAULT_ZOOM)
                 drawPoint(map, lat, lon, 5.0)
             }
