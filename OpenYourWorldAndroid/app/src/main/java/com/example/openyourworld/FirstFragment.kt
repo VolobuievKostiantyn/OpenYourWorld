@@ -109,7 +109,11 @@ class FirstFragment : Fragment() {
         }
 
         // Initial position
-        setPositionMarker(DEFAULT_LATITUDE, DEFAULT_LONGITUDE, DEFAULT_ZOOM)
+        val lat = LocationTrackingService.latitude
+        val lon = LocationTrackingService.longitude
+        setPositionMarker(lat, lon, DEFAULT_ZOOM)
+
+        // Todo: draw all previously visited places on the map
 
         // CURRENT POSITION BUTTON
         binding.buttonCurrentPosition.setOnClickListener {
@@ -119,8 +123,8 @@ class FirstFragment : Fragment() {
             Log.d(TAG, "Button press — live lat=$lat lon=$lon")
 
             if (lat != 0.0 && lon != 0.0) {
-                // Todo: set default zoom to current value
-                setPositionMarker(lat, lon, DEFAULT_ZOOM)
+                val currentZoom = map.zoomLevelDouble
+                setPositionMarker(lat, lon, currentZoom)
                 drawPoint(map, lat, lon, 5.0)
             }
         }
