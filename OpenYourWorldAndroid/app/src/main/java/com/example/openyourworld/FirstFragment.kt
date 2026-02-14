@@ -46,8 +46,6 @@ import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Overlay
 
-private const val DEFAULT_LATITUDE = 40.7128
-private const val DEFAULT_LONGITUDE = -74.0060
 private const val DEFAULT_ZOOM = 17.0
 
 class FirstFragment : Fragment() {
@@ -62,6 +60,8 @@ class FirstFragment : Fragment() {
 
     private val handler = Handler(Looper.getMainLooper())
 
+    private lateinit var dbHelper: LocationDatabaseHelper
+
     private val locationLogger = object : Runnable {
         override fun run() {
             val lat = LocationTrackingService.GlobalVariables.latitude
@@ -69,6 +69,14 @@ class FirstFragment : Fragment() {
 
             // Update map for each position
             Log.d(TAG, "Live location: lat=$lat, lon=$lon")
+
+            if (lat != 0.0 && lon != 0.0) {
+                // Save to DB
+                dbHelper.insertLocation(lat, lon)
+
+                // Draw on map
+                drawPoint(map, lat, lon, 5.0)
+            }
 
             handler.postDelayed(this, 2000) // update every 2 seconds
         }
@@ -97,6 +105,8 @@ class FirstFragment : Fragment() {
         map = view.findViewById(R.id.osmmap)
         map.setTileSource(TileSourceFactory.MAPNIK)
 
+        dbHelper = LocationDatabaseHelper(requireContext())
+
         penumbraOverlay = PenumbraRevealOverlay()
         map.overlays.add(penumbraOverlay)
 
@@ -113,9 +123,13 @@ class FirstFragment : Fragment() {
         val lon = LocationTrackingService.longitude
         setPositionMarker(lat, lon, DEFAULT_ZOOM)
 
-        // Todo: draw all previously visited places on the map
+        // Draw all previously visited places
+        val savedLocations = dbHelper.getAllLocations()
+        for (loc in savedLocations) {
+            drawPoint(map, loc.latitude, loc.longitude, 5.0)
+        }
 
-        // CURRENT POSITION BUTTON
+        // Current position button
         binding.buttonCurrentPosition.setOnClickListener {
             val lat = LocationTrackingService.latitude
             val lon = LocationTrackingService.longitude
@@ -123,6 +137,9 @@ class FirstFragment : Fragment() {
             Log.d(TAG, "Button press — live lat=$lat lon=$lon")
 
             if (lat != 0.0 && lon != 0.0) {
+                // Save current point into DB
+                dbHelper.insertLocation(lat, lon)
+
                 val currentZoom = map.zoomLevelDouble
                 setPositionMarker(lat, lon, currentZoom)
                 drawPoint(map, lat, lon, 5.0)
