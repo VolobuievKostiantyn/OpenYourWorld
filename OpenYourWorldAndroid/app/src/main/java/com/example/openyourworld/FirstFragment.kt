@@ -64,8 +64,8 @@ class FirstFragment : Fragment() {
 
     private val locationLogger = object : Runnable {
         override fun run() {
-            val lat = LocationTrackingService.GlobalVariables.latitude
-            val lon = LocationTrackingService.GlobalVariables.longitude
+            val lat = LocationTrackingService.latitude
+            val lon = LocationTrackingService.longitude
 
             // Update map for each position
             Log.d(TAG, "Live location: lat=$lat, lon=$lon")
@@ -123,7 +123,7 @@ class FirstFragment : Fragment() {
         val lon = LocationTrackingService.longitude
         setPositionMarker(lat, lon, DEFAULT_ZOOM)
 
-        // Draw all previously visited places
+        // Draw on map all previously visited places
         val savedLocations = dbHelper.getAllLocations()
         for (loc in savedLocations) {
             drawPoint(map, loc.latitude, loc.longitude, 5.0)
