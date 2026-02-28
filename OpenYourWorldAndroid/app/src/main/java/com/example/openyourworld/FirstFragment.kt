@@ -50,7 +50,7 @@ private const val DEFAULT_ZOOM = 17.0
 
 class FirstFragment : Fragment() {
 
-    private val TAG = "FirstFragment"
+    private val TAG = FirstFragment::class.java.simpleName
 
     private var _binding: FragmentFirstBinding? = null
     private val binding get() = _binding!!
@@ -89,7 +89,13 @@ class FirstFragment : Fragment() {
 
     override fun onResume() {
         super.onResume()
-        handler.post(locationLogger)
+        penumbraOverlay.clear()
+
+        val savedLocations = dbHelper.getAllLocations()
+        for (loc in savedLocations) {
+            drawPoint(map, loc.latitude, loc.longitude, 5.0)
+        }
+        //handler.post(locationLogger)
     }
 
     override fun onPause() {
@@ -203,6 +209,10 @@ class PenumbraRevealOverlay : Overlay() {
 
     fun addVisitedArea(center: GeoPoint, radiusMeters: Double) {
         visitedAreas += center to radiusMeters
+    }
+
+    fun clear() {
+        visitedAreas.clear()
     }
 
     override fun draw(canvas: Canvas, mapView: MapView, shadow: Boolean) {

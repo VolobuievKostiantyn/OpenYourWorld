@@ -22,8 +22,10 @@ import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.location.Location
 import android.os.Build
 import android.os.IBinder
+import android.util.Log
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import com.google.android.gms.location.FusedLocationProviderClient
@@ -35,6 +37,8 @@ import com.google.android.gms.location.Priority
 
 class LocationTrackingService : Service() {
 
+    private val TAG = LocationTrackingService::class.java.simpleName
+
     companion object GlobalVariables {
         @Volatile var latitude: Double = 0.0
         @Volatile var longitude: Double = 0.0
@@ -42,17 +46,37 @@ class LocationTrackingService : Service() {
 
     private lateinit var fusedClient: FusedLocationProviderClient
     private lateinit var callback: LocationCallback
+    private lateinit var dbHelper: LocationDatabaseHelper
+//    private var lastSavedLocation: Location? = null
 
     override fun onCreate() {
         super.onCreate()
+
+        dbHelper = LocationDatabaseHelper(this)
 
         fusedClient = LocationServices.getFusedLocationProviderClient(this)
 
         callback = object : LocationCallback() {
             override fun onLocationResult(result: LocationResult) {
                 val loc = result.lastLocation ?: return
+
+                // Todo: Only saves meaningful movement and reduces database writes.
+//                if (lastSavedLocation == null || loc.distanceTo(lastSavedLocation!!) > 5f) {
+//                    Thread { dbHelper.insertLocation(loc.latitude, loc.longitude) }.start()
+//                    lastSavedLocation = loc
+//                }
+
                 latitude = loc.latitude
                 longitude = loc.longitude
+
+                val lat = loc.latitude
+                val lon = loc.longitude
+
+                // save to database directly in background
+                Thread {
+                    Log.d(TAG, "dbHelper.insertLocation lat=$lat lon=$lon")
+                    dbHelper.insertLocation(lat, lon)
+                }.start()
             }
         }
 
