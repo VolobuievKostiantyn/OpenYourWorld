@@ -52,7 +52,7 @@ class LocationTrackingService : Service() {
     override fun onCreate() {
         super.onCreate()
 
-        dbHelper = LocationDatabaseHelper(this)
+        dbHelper = LocationDatabaseHelper(applicationContext)
 
         fusedClient = LocationServices.getFusedLocationProviderClient(this)
 
