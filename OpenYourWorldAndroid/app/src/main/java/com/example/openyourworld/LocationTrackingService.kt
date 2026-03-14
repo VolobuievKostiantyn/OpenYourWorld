@@ -76,6 +76,12 @@ class LocationTrackingService : Service() {
                 Thread {
                     Log.d(TAG, "dbHelper.insertLocation lat=$lat lon=$lon")
                     dbHelper.insertLocation(lat, lon)
+
+                    val intent = Intent("LOCATION_UPDATED")
+                    intent.putExtra("lat", lat)
+                    intent.putExtra("lon", lon)
+
+                    sendBroadcast(intent)
                 }.start()
             }
         }

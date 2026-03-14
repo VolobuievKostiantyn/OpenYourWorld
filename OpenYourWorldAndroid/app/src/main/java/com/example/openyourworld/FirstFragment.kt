@@ -16,7 +16,10 @@
 
 package com.example.openyourworld
 
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -35,6 +38,7 @@ import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.navigation.fragment.findNavController
 import com.example.openyourworld.databinding.FragmentFirstBinding
@@ -95,6 +99,13 @@ class FirstFragment : Fragment() {
         penumbraOverlay.clear()
         map.invalidate()
 
+        ContextCompat.registerReceiver(
+            requireContext(),
+            locationReceiver,
+            IntentFilter("LOCATION_UPDATED"),
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+
         val savedLocations = dbHelper.getAllLocations()
         for (loc in savedLocations) {
             drawPoint(map, loc.latitude, loc.longitude, POINT_RADIUS_METERS)
@@ -110,6 +121,7 @@ class FirstFragment : Fragment() {
     override fun onPause() {
         super.onPause()
         Log.d(TAG, "onPause")
+        requireContext().unregisterReceiver(locationReceiver)
         handler.removeCallbacks(locationLogger)
     }
 
@@ -171,6 +183,18 @@ class FirstFragment : Fragment() {
         // Next fragment
         binding.buttonNextFragment.setOnClickListener {
             findNavController().navigate(R.id.action_FirstFragment_to_SecondFragment)
+        }
+    }
+
+    private val locationReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+
+            val lat = intent?.getDoubleExtra("lat", 0.0) ?: return
+            val lon = intent.getDoubleExtra("lon", 0.0)
+
+            Log.d(TAG, "Broadcast received lat=$lat lon=$lon")
+
+            drawPoint(map, lat, lon, POINT_RADIUS_METERS)
         }
     }
 
