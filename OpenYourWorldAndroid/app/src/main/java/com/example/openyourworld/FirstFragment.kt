@@ -47,6 +47,7 @@ import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Overlay
 
 private const val DEFAULT_ZOOM = 17.0
+private const val POINT_RADIUS_METERS = 4.0
 
 class FirstFragment : Fragment() {
 
@@ -75,32 +76,46 @@ class FirstFragment : Fragment() {
                 dbHelper.insertLocation(lat, lon)
 
                 // Draw on map
-                drawPoint(map, lat, lon, 5.0)
+                drawPoint(map, lat, lon, POINT_RADIUS_METERS)
             }
 
-            handler.postDelayed(this, 2000) // update every 2 seconds
+            handler.postDelayed(this, 1000) // update every 2 seconds
         }
     }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentFirstBinding.inflate(inflater, container, false)
+        Log.d(TAG, "onCreateView")
         return binding.root
     }
 
     override fun onResume() {
         super.onResume()
+        Log.d(TAG, "onResume")
         penumbraOverlay.clear()
+        map.invalidate()
 
         val savedLocations = dbHelper.getAllLocations()
         for (loc in savedLocations) {
-            drawPoint(map, loc.latitude, loc.longitude, 5.0)
+            drawPoint(map, loc.latitude, loc.longitude, POINT_RADIUS_METERS)
         }
-        //handler.post(locationLogger)
+        handler.post(locationLogger)
+    }
+
+    override fun onStart() {
+        super.onStart()
+        Log.d(TAG, "onStart")
     }
 
     override fun onPause() {
         super.onPause()
+        Log.d(TAG, "onPause")
         handler.removeCallbacks(locationLogger)
+    }
+
+    override fun onStop() {
+        super.onStop()
+        Log.d(TAG, "onStop")
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -130,13 +145,14 @@ class FirstFragment : Fragment() {
         setPositionMarker(lat, lon, DEFAULT_ZOOM)
 
         // Draw on map all previously visited places
-        val savedLocations = dbHelper.getAllLocations()
-        for (loc in savedLocations) {
-            drawPoint(map, loc.latitude, loc.longitude, 5.0)
-        }
+//        val savedLocations = dbHelper.getAllLocations()
+//        for (loc in savedLocations) {
+//            drawPoint(map, loc.latitude, loc.longitude, POINT_RADIUS_METERS)
+//        }
 
         // Current position button
         binding.buttonCurrentPosition.setOnClickListener {
+            // Todo: add the code below to the onCreate - start draw on map once app is opened
             val lat = LocationTrackingService.latitude
             val lon = LocationTrackingService.longitude
 
@@ -148,7 +164,7 @@ class FirstFragment : Fragment() {
 
                 val currentZoom = map.zoomLevelDouble
                 setPositionMarker(lat, lon, currentZoom)
-                drawPoint(map, lat, lon, 5.0)
+                drawPoint(map, lat, lon, POINT_RADIUS_METERS)
             }
         }
 
@@ -165,6 +181,7 @@ class FirstFragment : Fragment() {
 
     override fun onDestroyView() {
         super.onDestroyView()
+        Log.d(TAG, "onDestroyView")
         _binding = null
     }
 
