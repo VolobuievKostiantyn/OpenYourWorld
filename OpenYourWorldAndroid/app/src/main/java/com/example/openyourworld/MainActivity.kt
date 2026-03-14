@@ -1,5 +1,6 @@
 package com.example.openyourworld
 
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.view.Menu
@@ -73,7 +74,21 @@ class MainActivity : AppCompatActivity() {
         // automatically handle clicks on the Home/Up button, so long
         // as you specify a parent activity in AndroidManifest.xml.
         return when (item.itemId) {
+
+            R.id.clear_map -> {
+
+                // send event to fragment
+                val intent = Intent("CLEAR_MAP")
+                intent.setPackage(packageName)
+                sendBroadcast(intent)
+
+                Toast.makeText(this, "Map cleared", Toast.LENGTH_SHORT).show()
+
+                true
+            }
+
             R.id.action_settings -> true
+
             else -> super.onOptionsItemSelected(item)
         }
     }

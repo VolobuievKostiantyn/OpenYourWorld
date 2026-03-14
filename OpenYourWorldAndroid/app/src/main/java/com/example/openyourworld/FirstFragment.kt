@@ -83,7 +83,7 @@ class FirstFragment : Fragment() {
                 drawPoint(map, lat, lon, POINT_RADIUS_METERS)
             }
 
-            handler.postDelayed(this, 1000) // update every 2 seconds
+            handler.postDelayed(this, 1000) // update every 1 second
         }
     }
 
@@ -96,13 +96,23 @@ class FirstFragment : Fragment() {
     override fun onResume() {
         super.onResume()
         Log.d(TAG, "onResume")
-        penumbraOverlay.clear()
+        
+        // Don't clear here if we want to keep state, but if we do, invalidate
+        // penumbraOverlay.clear() 
+        
         map.invalidate()
 
         ContextCompat.registerReceiver(
             requireContext(),
             locationReceiver,
             IntentFilter("LOCATION_UPDATED"),
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+
+        ContextCompat.registerReceiver(
+            requireContext(),
+            clearMapReceiver,
+            IntentFilter("CLEAR_MAP"),
             ContextCompat.RECEIVER_NOT_EXPORTED
         )
 
@@ -122,6 +132,7 @@ class FirstFragment : Fragment() {
         super.onPause()
         Log.d(TAG, "onPause")
         requireContext().unregisterReceiver(locationReceiver)
+        requireContext().unregisterReceiver(clearMapReceiver)
         handler.removeCallbacks(locationLogger)
     }
 
@@ -224,7 +235,31 @@ class FirstFragment : Fragment() {
 
         map.invalidate()
     }
+
+    private val clearMapReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            Log.d(TAG, "CLEAR_MAP received")
+
+            // clear DB
+            dbHelper.clearLocations()
+
+            // clear overlay
+            penumbraOverlay.clear()
+
+            // remove markers but keep the overlay
+            val it = map.overlays.iterator()
+            while (it.hasNext()) {
+                val overlay = it.next()
+                if (overlay is Marker) {
+                    it.remove()
+                }
+            }
+
+            map.invalidate()
+        }
+    }
 }
+
 
 /**********************
  * PENUMBRA OVERLAY

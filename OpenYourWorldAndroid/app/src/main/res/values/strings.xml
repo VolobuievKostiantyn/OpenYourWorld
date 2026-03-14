@@ -1,6 +1,7 @@
 <resources>
     <string name="app_name">OpenYourWorld</string>
     <string name="action_settings">Settings</string>
+    <string name="clear_map">Clear Map</string>
     <!-- Strings used for fragments for navigation -->
     <string name="first_fragment_label">World Map</string>
     <string name="second_fragment_label">Statistics</string>

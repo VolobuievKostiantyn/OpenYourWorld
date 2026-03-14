@@ -75,4 +75,9 @@ class LocationDatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATAB
         const val COLUMN_LATITUDE = "latitude"
         const val COLUMN_LONGITUDE = "longitude"
     }
+
+    fun clearLocations() {
+        val db = writableDatabase
+        db.delete(TABLE_LOCATIONS, null, null)
+    }
 }
