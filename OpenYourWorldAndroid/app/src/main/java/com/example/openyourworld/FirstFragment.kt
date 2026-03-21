@@ -144,6 +144,8 @@ class FirstFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        Log.d(TAG, "onViewCreated")
+
         // OSMDroid setup
         Configuration.getInstance().load(requireContext(), PreferenceManager.getDefaultSharedPreferences(requireContext()))
         map = view.findViewById(R.id.osmmap)
@@ -168,10 +170,10 @@ class FirstFragment : Fragment() {
         setPositionMarker(lat, lon, DEFAULT_ZOOM)
 
         // Draw on map all previously visited places
-//        val savedLocations = dbHelper.getAllLocations()
-//        for (loc in savedLocations) {
-//            drawPoint(map, loc.latitude, loc.longitude, POINT_RADIUS_METERS)
-//        }
+        val savedLocations = dbHelper.getAllLocations()
+        for (loc in savedLocations) {
+            drawPoint(map, loc.latitude, loc.longitude, POINT_RADIUS_METERS)
+        }
 
         // Current position button
         binding.buttonCurrentPosition.setOnClickListener {
