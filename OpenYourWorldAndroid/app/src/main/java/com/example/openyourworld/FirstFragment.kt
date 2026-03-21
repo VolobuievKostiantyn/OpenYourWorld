@@ -120,7 +120,7 @@ class FirstFragment : Fragment() {
         for (loc in savedLocations) {
             drawPoint(map, loc.latitude, loc.longitude, POINT_RADIUS_METERS)
         }
-        handler.post(locationLogger)
+        //handler.post(locationLogger)
     }
 
     override fun onStart() {
@@ -133,7 +133,7 @@ class FirstFragment : Fragment() {
         Log.d(TAG, "onPause")
         requireContext().unregisterReceiver(locationReceiver)
         requireContext().unregisterReceiver(clearMapReceiver)
-        handler.removeCallbacks(locationLogger)
+        //handler.removeCallbacks(locationLogger)
     }
 
     override fun onStop() {
@@ -167,7 +167,9 @@ class FirstFragment : Fragment() {
         // Initial position
         val lat = LocationTrackingService.latitude
         val lon = LocationTrackingService.longitude
-        setPositionMarker(lat, lon, DEFAULT_ZOOM)
+        if (lat != 0.0 && lon != 0.0) {
+            setPositionMarker(lat, lon, DEFAULT_ZOOM)
+        }
 
         // Draw on map all previously visited places
         val savedLocations = dbHelper.getAllLocations()
