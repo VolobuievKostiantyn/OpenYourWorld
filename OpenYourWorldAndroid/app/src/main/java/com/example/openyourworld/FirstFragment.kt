@@ -67,6 +67,8 @@ class FirstFragment : Fragment() {
 
     private lateinit var dbHelper: LocationDatabaseHelper
 
+    private var isFirstFix = true
+
     private val locationLogger = object : Runnable {
         override fun run() {
             val lat = LocationTrackingService.latitude
@@ -120,6 +122,7 @@ class FirstFragment : Fragment() {
         for (loc in savedLocations) {
             drawPoint(map, loc.latitude, loc.longitude, POINT_RADIUS_METERS)
         }
+        map.invalidate()
         //handler.post(locationLogger)
     }
 
@@ -155,6 +158,8 @@ class FirstFragment : Fragment() {
 
         penumbraOverlay = PenumbraRevealOverlay()
         map.overlays.add(penumbraOverlay)
+        // Set a default zoom immediately so the map isn't zoomed out to the world
+        map.controller.setZoom(DEFAULT_ZOOM)
 
         val intent = Intent(requireContext(), LocationTrackingService::class.java)
 
@@ -169,6 +174,10 @@ class FirstFragment : Fragment() {
         val lon = LocationTrackingService.longitude
         if (lat != 0.0 && lon != 0.0) {
             setPositionMarker(lat, lon, DEFAULT_ZOOM)
+        } else {
+            // If first install, we just wait for the first broadcast
+            // but the zoom is already set by step 1 above.
+            Log.d(TAG, "Waiting for first GPS fix...")
         }
 
         // Draw on map all previously visited places
@@ -186,12 +195,8 @@ class FirstFragment : Fragment() {
             Log.d(TAG, "Button press — live lat=$lat lon=$lon")
 
             if (lat != 0.0 && lon != 0.0) {
-                // Save current point into DB
-                dbHelper.insertLocation(lat, lon)
-
-                val currentZoom = map.zoomLevelDouble
+                val currentZoom = if (map.zoomLevelDouble > 1.0) map.zoomLevelDouble else DEFAULT_ZOOM
                 setPositionMarker(lat, lon, currentZoom)
-                drawPoint(map, lat, lon, POINT_RADIUS_METERS)
             }
         }
 
@@ -203,13 +208,19 @@ class FirstFragment : Fragment() {
 
     private val locationReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-
             val lat = intent?.getDoubleExtra("lat", 0.0) ?: return
             val lon = intent.getDoubleExtra("lon", 0.0)
 
-            Log.d(TAG, "Broadcast received lat=$lat lon=$lon")
+            if (lat != 0.0 && lon != 0.0) {
+                Log.d(TAG, "New position drawn via broadcast lat=$lat lon=$lon")
+                drawPoint(map, lat, lon, POINT_RADIUS_METERS)
 
-            drawPoint(map, lat, lon, POINT_RADIUS_METERS)
+                // If this is the first fix since the app opened, center the map
+                if (isFirstFix) {
+                    setPositionMarker(lat, lon, DEFAULT_ZOOM)
+                    isFirstFix = false // Don't snap/jump the camera anymore after this
+                }
+            }
         }
     }
 
@@ -226,16 +237,19 @@ class FirstFragment : Fragment() {
 
     private fun setPositionMarker(latitude: Double, longitude: Double, zoom: Double) {
         val geoPoint = GeoPoint(latitude, longitude)
+
+        // Remove existing markers to avoid stacking multiple "You are here" icons
+        val markersToRemove = map.overlays.filterIsInstance<Marker>()
+        map.overlays.removeAll(markersToRemove)
+
         val marker = Marker(map)
         marker.position = geoPoint
         marker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
         marker.title = "You are here"
         map.overlays.add(marker)
 
-        (map.controller as MapController).apply {
-            setZoom(zoom.toInt())
-            setCenter(geoPoint)
-        }
+        map.controller.setZoom(zoom)
+        map.controller.setCenter(geoPoint)
 
         map.invalidate()
     }
