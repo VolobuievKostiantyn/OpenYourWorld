@@ -49,6 +49,12 @@ class LocationTrackingService : Service() {
     private lateinit var dbHelper: LocationDatabaseHelper
 //    private var lastSavedLocation: Location? = null
 
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Calling this here prevents the "ForegroundServiceDidNotStartInTimeException"
+        startForegroundServiceInternal()
+        return START_STICKY
+    }
+
     override fun onCreate() {
         super.onCreate()
 
@@ -72,16 +78,17 @@ class LocationTrackingService : Service() {
                 val lat = loc.latitude
                 val lon = loc.longitude
 
-                // save to database directly in background
+                // Notify UI immediately for real-time drawing
+                val intent = Intent("LOCATION_UPDATED")
+                intent.putExtra("lat", lat)
+                intent.putExtra("lon", lon)
+                intent.setPackage(packageName)
+                sendBroadcast(intent)
+
+                // Save to database in background and notify UI
                 Thread {
-                    Log.d(TAG, "dbHelper.insertLocation lat=$lat lon=$lon")
+                    Log.d(TAG, "Inserting location and broadcasting: lat=$lat lon=$lon")
                     dbHelper.insertLocation(lat, lon)
-
-                    val intent = Intent("LOCATION_UPDATED")
-                    intent.putExtra("lat", lat)
-                    intent.putExtra("lon", lon)
-
-                    sendBroadcast(intent)
                 }.start()
             }
         }

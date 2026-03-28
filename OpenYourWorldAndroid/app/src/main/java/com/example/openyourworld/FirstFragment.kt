@@ -50,7 +50,7 @@ import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Overlay
 
-private const val DEFAULT_ZOOM = 17.0
+private const val DEFAULT_ZOOM = 19.0
 private const val POINT_RADIUS_METERS = 4.0
 
 class FirstFragment : Fragment() {
@@ -69,26 +69,6 @@ class FirstFragment : Fragment() {
 
     private var isFirstFix = true
 
-    private val locationLogger = object : Runnable {
-        override fun run() {
-            val lat = LocationTrackingService.latitude
-            val lon = LocationTrackingService.longitude
-
-            // Update map for each position
-            Log.d(TAG, "Live location: lat=$lat, lon=$lon")
-
-            if (lat != 0.0 && lon != 0.0) {
-                // Save to DB
-                dbHelper.insertLocation(lat, lon)
-
-                // Draw on map
-                drawPoint(map, lat, lon, POINT_RADIUS_METERS)
-            }
-
-            handler.postDelayed(this, 1000) // update every 1 second
-        }
-    }
-
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentFirstBinding.inflate(inflater, container, false)
         Log.d(TAG, "onCreateView")
@@ -100,15 +80,17 @@ class FirstFragment : Fragment() {
         Log.d(TAG, "onResume")
         
         // Don't clear here if we want to keep state, but if we do, invalidate
-        // penumbraOverlay.clear() 
-        
-        map.invalidate()
+        penumbraOverlay.clear()
 
-        ContextCompat.registerReceiver(
-            requireContext(),
+        // Register with the exact action string used in the Service
+        val filter = IntentFilter("LOCATION_UPDATED")
+
+        // Use requireActivity().registerReceiver or ContextCompat
+        requireContext().registerReceiver(
             locationReceiver,
-            IntentFilter("LOCATION_UPDATED"),
-            ContextCompat.RECEIVER_NOT_EXPORTED
+            filter,
+            // Since you are sending from your own app, RECEIVER_NOT_EXPORTED is safer
+            Context.RECEIVER_NOT_EXPORTED
         )
 
         ContextCompat.registerReceiver(
@@ -118,12 +100,14 @@ class FirstFragment : Fragment() {
             ContextCompat.RECEIVER_NOT_EXPORTED
         )
 
+        // Load ALL historical points from DB once when map opens
         val savedLocations = dbHelper.getAllLocations()
         for (loc in savedLocations) {
-            drawPoint(map, loc.latitude, loc.longitude, POINT_RADIUS_METERS)
+            penumbraOverlay.addVisitedArea(GeoPoint(loc.latitude, loc.longitude), POINT_RADIUS_METERS)
         }
+
+        // Refresh the map view
         map.invalidate()
-        //handler.post(locationLogger)
     }
 
     override fun onStart() {
@@ -136,7 +120,6 @@ class FirstFragment : Fragment() {
         Log.d(TAG, "onPause")
         requireContext().unregisterReceiver(locationReceiver)
         requireContext().unregisterReceiver(clearMapReceiver)
-        //handler.removeCallbacks(locationLogger)
     }
 
     override fun onStop() {
@@ -161,8 +144,8 @@ class FirstFragment : Fragment() {
         // Set a default zoom immediately so the map isn't zoomed out to the world
         map.controller.setZoom(DEFAULT_ZOOM)
 
+        // Start Service
         val intent = Intent(requireContext(), LocationTrackingService::class.java)
-
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             requireContext().startForegroundService(intent)
         } else {
@@ -180,15 +163,8 @@ class FirstFragment : Fragment() {
             Log.d(TAG, "Waiting for first GPS fix...")
         }
 
-        // Draw on map all previously visited places
-        val savedLocations = dbHelper.getAllLocations()
-        for (loc in savedLocations) {
-            drawPoint(map, loc.latitude, loc.longitude, POINT_RADIUS_METERS)
-        }
-
         // Current position button
         binding.buttonCurrentPosition.setOnClickListener {
-            // Todo: add the code below to the onCreate - start draw on map once app is opened
             val lat = LocationTrackingService.latitude
             val lon = LocationTrackingService.longitude
 
@@ -208,19 +184,37 @@ class FirstFragment : Fragment() {
 
     private val locationReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
+            // Get coordinates passed from LocationTrackingService
             val lat = intent?.getDoubleExtra("lat", 0.0) ?: return
             val lon = intent.getDoubleExtra("lon", 0.0)
 
             if (lat != 0.0 && lon != 0.0) {
+                // Draw on the map immediately while user is looking
                 Log.d(TAG, "New position drawn via broadcast lat=$lat lon=$lon")
+                // Todo: draw point in real-time when map is opened and user is looking at it
                 drawPoint(map, lat, lon, POINT_RADIUS_METERS)
 
-                // If this is the first fix since the app opened, center the map
+                // Snap camera if it's the very first location found
                 if (isFirstFix) {
                     setPositionMarker(lat, lon, DEFAULT_ZOOM)
                     isFirstFix = false // Don't snap/jump the camera anymore after this
+                } else {
+                    // Update marker position without changing zoom if user is already looking
+                    updateMarkerOnly(lat, lon)
                 }
             }
+        }
+    }
+
+    // Helper to move marker without snapping zoom every time
+    private fun updateMarkerOnly(lat: Double, lon: Double) {
+        val geoPoint = GeoPoint(lat, lon)
+        val marker = map.overlays.filterIsInstance<Marker>().firstOrNull()
+        if (marker != null) {
+            marker.position = geoPoint
+            map.invalidate()
+        } else {
+            setPositionMarker(lat, lon, map.zoomLevelDouble)
         }
     }
 
@@ -264,14 +258,9 @@ class FirstFragment : Fragment() {
             // clear overlay
             penumbraOverlay.clear()
 
-            // remove markers but keep the overlay
-            val it = map.overlays.iterator()
-            while (it.hasNext()) {
-                val overlay = it.next()
-                if (overlay is Marker) {
-                    it.remove()
-                }
-            }
+            // remove markers
+            val markersToRemove = map.overlays.filterIsInstance<Marker>()
+            map.overlays.removeAll(markersToRemove)
 
             map.invalidate()
         }
@@ -283,8 +272,7 @@ class FirstFragment : Fragment() {
  * PENUMBRA OVERLAY
  **********************/
 class PenumbraRevealOverlay : Overlay() {
-
-    private val visitedAreas = mutableListOf<Pair<GeoPoint, Double>>()
+    private val visitedAreas = java.util.Collections.synchronizedList(mutableListOf<Pair<GeoPoint, Double>>())
 
     private val veilPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.FILL
@@ -302,7 +290,7 @@ class PenumbraRevealOverlay : Overlay() {
     }
 
     fun addVisitedArea(center: GeoPoint, radiusMeters: Double) {
-        visitedAreas += center to radiusMeters
+        visitedAreas.add(Pair(center, radiusMeters))
     }
 
     fun clear() {
