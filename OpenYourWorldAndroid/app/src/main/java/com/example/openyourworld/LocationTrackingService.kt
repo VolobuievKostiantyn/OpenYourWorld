@@ -22,7 +22,6 @@ import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.location.Location
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
@@ -47,7 +46,7 @@ class LocationTrackingService : Service() {
     private lateinit var fusedClient: FusedLocationProviderClient
     private lateinit var callback: LocationCallback
     private lateinit var dbHelper: LocationDatabaseHelper
-    private var lastSavedLocation: Location? = null
+//    private var lastSavedLocation: Location? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         // Calling this here prevents the "ForegroundServiceDidNotStartInTimeException"
@@ -66,11 +65,11 @@ class LocationTrackingService : Service() {
             override fun onLocationResult(result: LocationResult) {
                 val loc = result.lastLocation ?: return
 
-                // Only saves meaningful movement and reduces database writes.
-                if (lastSavedLocation == null || loc.distanceTo(lastSavedLocation!!) > 5f) {
-                    Thread { dbHelper.insertLocation(loc.latitude, loc.longitude) }.start()
-                    lastSavedLocation = loc
-                }
+                // Todo: Only saves meaningful movement and reduces database writes.
+//                if (lastSavedLocation == null || loc.distanceTo(lastSavedLocation!!) > 5f) {
+//                    Thread { dbHelper.insertLocation(loc.latitude, loc.longitude) }.start()
+//                    lastSavedLocation = loc
+//                }
 
                 latitude = loc.latitude
                 longitude = loc.longitude
