@@ -112,7 +112,7 @@ class LocationTrackingService : Service() {
     private fun startForegroundServiceInternal() {
         val channelId = "location_channel"
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             val channel = NotificationChannel(
                 channelId,
                 "Location Tracking",
