@@ -2,6 +2,7 @@ package com.example.openyourworld
 
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
@@ -55,8 +56,13 @@ class MainActivity : AppCompatActivity() {
         ActivityResultContracts.RequestPermission()
     ) { isGranted: Boolean ->
         if (isGranted) {
-            // Permission is granted, get the location
-            //LocationTrackingService.getLastKnownLocation(this.fusedLocationClient, this)
+            // Permission is granted, start background service
+            val intent = Intent(this, LocationTrackingService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(intent)
+            } else {
+                startService(intent)
+            }
         } else {
             // Permission denied
             Toast.makeText(applicationContext, "Location permission denied", Toast.LENGTH_SHORT).show()
