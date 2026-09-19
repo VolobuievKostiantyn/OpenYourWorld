@@ -46,6 +46,7 @@ import androidx.navigation.fragment.findNavController
 import com.example.openyourworld.databinding.FragmentFirstBinding
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
+import org.osmdroid.tileprovider.tilesource.XYTileSource
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapController
 import org.osmdroid.views.MapView
@@ -53,7 +54,7 @@ import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Overlay
 import java.io.File
 
-private const val DEFAULT_ZOOM = 19.0
+private const val DEFAULT_ZOOM = 17.0
 private const val POINT_RADIUS_METERS = 4.0
 
 class FirstFragment : Fragment() {
@@ -135,21 +136,9 @@ class FirstFragment : Fragment() {
 
         Log.d(TAG, "onViewCreated")
 
-        val ctx = requireContext()
-        val sharedPrefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(ctx)
-        
-        // 1. Load defaults config
-        Configuration.getInstance().load(ctx, sharedPrefs)
-        
-        // 2. Set an absolute legitimate, unique, and identifiable User-Agent matching the policy guidelines
-        // Providing specific app function detail along with a real contact email to fully adhere to OSM rules.
-        Configuration.getInstance().userAgentValue = "OpenYourWorldAndroidFitnessTrackingApp/1.0.4 (Linux; Android; contact: unique_dev_contact_mail@example.com)"
-        
-        // 3. Separate cache version path
-        Configuration.getInstance().osmdroidBasePath = ctx.cacheDir
-        Configuration.getInstance().osmdroidTileCache = File(ctx.cacheDir, "osmdroid/tiles_v5")
-
         map = view.findViewById(R.id.osmmap)
+        
+        // 3. Set the tile source to the official OpenStreetMap (Mapnik)
         map.setTileSource(TileSourceFactory.MAPNIK)
 
         dbHelper = LocationDatabaseHelper(requireContext())
