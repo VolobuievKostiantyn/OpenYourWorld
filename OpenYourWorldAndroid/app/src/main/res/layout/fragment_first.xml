@@ -8,8 +8,18 @@
     tools:context=".FirstFragment">
 
     <!-- Map fills whole screen -->
-    <org.osmdroid.views.MapView
-        android:id="@+id/osmmap"
+    <org.maplibre.android.maps.MapView
+        android:id="@+id/map_view"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <!-- Fog of War overlay -->
+    <com.example.openyourworld.PenumbraOverlayView
+        android:id="@+id/penumbra_overlay"
         android:layout_width="0dp"
         android:layout_height="0dp"
         app:layout_constraintTop_toTopOf="parent"
