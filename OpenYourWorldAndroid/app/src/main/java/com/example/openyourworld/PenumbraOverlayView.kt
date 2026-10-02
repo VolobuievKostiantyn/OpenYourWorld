@@ -1,136 +1,152 @@
 package com.example.openyourworld
 
 import android.content.Context
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.PointF
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffXfermode
+import android.graphics.RadialGradient
+import android.graphics.RectF
+import android.graphics.Shader
 import android.util.AttributeSet
+import android.view.MotionEvent
 import android.view.View
 import org.maplibre.android.geometry.LatLng
+import org.maplibre.android.geometry.LatLngBounds
 import org.maplibre.android.maps.MapLibreMap
-import org.maplibre.android.style.layers.FillLayer
-import org.maplibre.android.style.layers.PropertyFactory
-import org.maplibre.android.style.sources.GeoJsonSource
-import org.maplibre.geojson.Feature
-import org.maplibre.geojson.FeatureCollection
-import org.maplibre.geojson.Point
-import org.maplibre.geojson.Polygon
 import java.util.Collections
-import kotlin.math.asin
-import kotlin.math.atan2
-import kotlin.math.cos
-import kotlin.math.sin
 
-/**
- * Manages the GTA-style Fog of War / Penumbra reveal overlay natively on MapLibre.
- * Uses a native MapLibre GeoJSON Source & Fill Layer so that revealed area holes
- * are rendered directly inside MapLibre's OpenGL pipeline. This ensures the fog
- * moves in 100% perfect synchronization with the background map during drag, pan,
- * and zoom gestures without any frame delay or lag.
- */
 class PenumbraOverlayView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
     defStyleAttr: Int = 0
 ) : View(context, attrs, defStyleAttr) {
 
-    companion object {
-        private const val SOURCE_ID = "penumbra-geojson-source"
-        private const val LAYER_ID = "penumbra-fill-layer"
-
-        // World bounding box outer ring
-        private val WORLD_OUTER_RING = listOf(
-            Point.fromLngLat(-180.0, -85.0),
-            Point.fromLngLat(180.0, -85.0),
-            Point.fromLngLat(180.0, 85.0),
-            Point.fromLngLat(-180.0, 85.0),
-            Point.fromLngLat(-180.0, -85.0)
-        )
-    }
-
     private val visitedAreas = Collections.synchronizedList(mutableListOf<Pair<LatLng, Double>>())
-    private var mapLibreMap: MapLibreMap? = null
-    private var geoJsonSource: GeoJsonSource? = null
 
-    init {
-        // Overlay view itself is invisible / non-interactive as MapLibre GL renders the layer directly
-        visibility = GONE
+    private var mapLibreMap: MapLibreMap? = null
+
+    private val veilPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.FILL
+        color = Color.argb(180, 30, 30, 30)
     }
+
+    private val clearPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.FILL
+        xfermode = PorterDuffXfermode(PorterDuff.Mode.CLEAR)
+    }
+
+    private val featherPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.FILL
+        xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
+    }
+
+    private val boundsRect = RectF()
 
     fun attachMap(map: MapLibreMap) {
         this.mapLibreMap = map
-        val style = map.style ?: return
-
-        var source = style.getSourceAs<GeoJsonSource>(SOURCE_ID)
-        if (source == null) {
-            source = GeoJsonSource(SOURCE_ID)
-            style.addSource(source)
+        map.addOnCameraMoveListener {
+            invalidate()
         }
-        geoJsonSource = source
-
-        if (style.getLayer(LAYER_ID) == null) {
-            val fillLayer = FillLayer(LAYER_ID, SOURCE_ID).apply {
-                setProperties(
-                    PropertyFactory.fillColor(Color.argb(180, 30, 30, 30)),
-                    PropertyFactory.fillAntialias(true)
-                )
-            }
-            style.addLayer(fillLayer)
+        map.addOnCameraIdleListener {
+            invalidate()
         }
-
-        updateLayerGeometry()
+        invalidate()
     }
 
     fun addVisitedArea(center: LatLng, radiusMeters: Double) {
         visitedAreas.add(Pair(center, radiusMeters))
-        updateLayerGeometry()
+        postInvalidate()
     }
 
     fun clear() {
         visitedAreas.clear()
-        updateLayerGeometry()
+        postInvalidate()
     }
 
-    private fun updateLayerGeometry() {
+    override fun onTouchEvent(event: MotionEvent?): Boolean {
+        return false
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        super.onDraw(canvas)
+
         val map = mapLibreMap ?: return
-        val style = map.style ?: return
-        val source = geoJsonSource ?: style.getSourceAs<GeoJsonSource>(SOURCE_ID) ?: return
+        if (visitedAreas.isEmpty()) return
+
+        val widthF = width.toFloat()
+        val heightF = height.toFloat()
+        if (widthF <= 0f || heightF <= 0f) return
+
+        boundsRect.set(0f, 0f, widthF, heightF)
+        val checkpoint = canvas.saveLayer(boundsRect, null)
+
+        // Draw dark fog veil
+        canvas.drawRect(0f, 0f, widthF, heightF, veilPaint)
+
+        val projection = map.projection
+
+        // Get visible region bounds for fast viewport culling
+        val visibleBounds: LatLngBounds? = try {
+            projection.visibleRegion.latLngBounds
+        } catch (_: Exception) {
+            null
+        }
+
+        // Buffer factor to include points just outside screen edge
+        val bufferedBounds = visibleBounds?.let {
+            val latExpand = (it.latitudeSpan * 0.1).coerceAtLeast(0.001)
+            val lonExpand = (it.longitudeSpan * 0.1).coerceAtLeast(0.001)
+            LatLngBounds.from(
+                (it.latitudeNorth + latExpand).coerceAtMost(85.0),
+                (it.longitudeEast + lonExpand).coerceAtMost(180.0),
+                (it.latitudeSouth - latExpand).coerceAtLeast(-85.0),
+                (it.longitudeWest - lonExpand).coerceAtLeast(-180.0)
+            )
+        }
+
+        val targetLat = map.cameraPosition.target?.latitude ?: 0.0
+        val metersPerPixel = projection.getMetersPerPixelAtLatitude(targetLat)
 
         synchronized(visitedAreas) {
-            if (visitedAreas.isEmpty()) {
-                source.setGeoJson(FeatureCollection.fromFeatures(arrayOf()))
-                return
+            for ((latLng, radiusMeters) in visitedAreas) {
+                // Viewport check
+                if (bufferedBounds != null && !bufferedBounds.contains(latLng)) {
+                    continue
+                }
+
+                val pixelPoint: PointF = projection.toScreenLocation(latLng)
+
+                val radiusPx = if (metersPerPixel > 0) {
+                    (radiusMeters / metersPerPixel).toFloat()
+                } else {
+                    10f
+                }
+
+                // Minimum visible radius so revealed point is clear even at high zoom out
+                val effectiveRadiusPx = radiusPx.coerceAtLeast(8f)
+
+                // Draw center clear hole
+                canvas.drawCircle(pixelPoint.x, pixelPoint.y, effectiveRadiusPx * 0.7f, clearPaint)
+
+                // Draw feathered gradient edge
+                val gradient = RadialGradient(
+                    pixelPoint.x,
+                    pixelPoint.y,
+                    effectiveRadiusPx,
+                    intArrayOf(Color.BLACK, Color.TRANSPARENT),
+                    floatArrayOf(0f, 1f),
+                    Shader.TileMode.CLAMP
+                )
+
+                featherPaint.shader = gradient
+                canvas.drawCircle(pixelPoint.x, pixelPoint.y, effectiveRadiusPx, featherPaint)
+                featherPaint.shader = null
             }
-
-            val rings = ArrayList<List<Point>>(visitedAreas.size + 1)
-            rings.add(WORLD_OUTER_RING)
-
-            for ((center, radiusMeters) in visitedAreas) {
-                rings.add(createCircleRing(center.latitude, center.longitude, radiusMeters))
-            }
-
-            val polygon = Polygon.fromLngLats(rings)
-            source.setGeoJson(Feature.fromGeometry(polygon))
         }
-    }
 
-    private fun createCircleRing(centerLat: Double, centerLon: Double, radiusMeters: Double, steps: Int = 24): List<Point> {
-        val ring = ArrayList<Point>(steps + 1)
-        val latRad = Math.toRadians(centerLat)
-        val lonRad = Math.toRadians(centerLon)
-        val earthRadiusMeters = 6371008.8
-        val d = radiusMeters / earthRadiusMeters
-
-        for (i in 0 until steps) {
-            val bearing = Math.toRadians((i * 360.0) / steps)
-            val lat2 = asin(
-                sin(latRad) * cos(d) + cos(latRad) * sin(d) * cos(bearing)
-            )
-            val lon2 = lonRad + atan2(
-                sin(bearing) * sin(d) * cos(latRad),
-                cos(d) - sin(latRad) * sin(lat2)
-            )
-            ring.add(Point.fromLngLat(Math.toDegrees(lon2), Math.toDegrees(lat2)))
-        }
-        ring.add(ring[0])
-        return ring
+        canvas.restoreToCount(checkpoint)
     }
 }
