@@ -104,7 +104,11 @@ class LocationTrackingService : Service() {
         val request = LocationRequest.Builder(
             Priority.PRIORITY_HIGH_ACCURACY,
             5000L
-        ).build()
+        )
+            .setMinUpdateIntervalMillis(2000L)
+            .setMinUpdateDistanceMeters(0f)
+            .setWaitForAccurateLocation(false)
+            .build()
 
         fusedClient.requestLocationUpdates(request, callback, mainLooper)
     }
@@ -112,22 +116,28 @@ class LocationTrackingService : Service() {
     private fun startForegroundServiceInternal() {
         val channelId = "location_channel"
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 channelId,
                 "Location Tracking",
                 NotificationManager.IMPORTANCE_LOW
             )
-            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+            val notificationManager = getSystemService(NotificationManager::class.java)
+            notificationManager?.createNotificationChannel(channel)
         }
 
         val notification = NotificationCompat.Builder(this, channelId)
             .setContentTitle("Tracking location")
             .setContentText("Location updates active")
             .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setOngoing(true)
             .build()
 
-        startForeground(1, notification)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(1, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
+        } else {
+            startForeground(1, notification)
+        }
     }
 
     override fun onDestroy() {

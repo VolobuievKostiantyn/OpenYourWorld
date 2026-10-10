@@ -136,6 +136,8 @@ class FirstFragment : Fragment() {
         for (loc in savedLocations) {
             penumbraOverlay.addVisitedArea(LatLng(loc.latitude, loc.longitude), POINT_RADIUS_METERS)
         }
+        penumbraOverlay.invalidate()
+        mapView.invalidate()
     }
 
     override fun onResume() {
@@ -229,6 +231,7 @@ class FirstFragment : Fragment() {
         val latLng = LatLng(lat, lon)
         if (currentMarker != null) {
             currentMarker?.position = latLng
+            mapView.invalidate()
         } else {
             val zoom = mapLibreMap?.cameraPosition?.zoom ?: DEFAULT_ZOOM
             setPositionMarker(lat, lon, zoom)
@@ -237,6 +240,8 @@ class FirstFragment : Fragment() {
 
     private fun drawPoint(lat: Double, lon: Double, radiusMeters: Double) {
         penumbraOverlay.addVisitedArea(LatLng(lat, lon), radiusMeters)
+        penumbraOverlay.invalidate()
+        mapView.invalidate()
     }
 
     private fun setPositionMarker(latitude: Double, longitude: Double, zoom: Double) {
@@ -252,6 +257,7 @@ class FirstFragment : Fragment() {
         currentMarker = map.addMarker(markerOptions)
 
         map.moveCamera(CameraUpdateFactory.newLatLngZoom(latLng, zoom))
+        mapView.invalidate()
     }
 
     private val clearMapReceiver = object : BroadcastReceiver() {
@@ -263,6 +269,9 @@ class FirstFragment : Fragment() {
 
             currentMarker?.let { mapLibreMap?.removeMarker(it) }
             currentMarker = null
+
+            penumbraOverlay.invalidate()
+            mapView.invalidate()
         }
     }
 }

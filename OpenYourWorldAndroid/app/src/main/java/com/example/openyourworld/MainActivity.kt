@@ -42,29 +42,37 @@ class MainActivity : AppCompatActivity() {
     private fun checkLocationPermissions() {
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(applicationContext)
 
-        if (ContextCompat.checkSelfPermission(applicationContext, android.Manifest.permission.ACCESS_FINE_LOCATION)
-            != PackageManager.PERMISSION_GRANTED) {
-            // Permission is not granted, request it
-            requestPermissionLauncher.launch(android.Manifest.permission.ACCESS_FINE_LOCATION)
+        val permissionsToRequest = mutableListOf(android.Manifest.permission.ACCESS_FINE_LOCATION)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            permissionsToRequest.add(android.Manifest.permission.POST_NOTIFICATIONS)
+        }
+
+        val missingPermissions = permissionsToRequest.filter {
+            ContextCompat.checkSelfPermission(applicationContext, it) != PackageManager.PERMISSION_GRANTED
+        }
+
+        if (missingPermissions.isNotEmpty()) {
+            requestPermissionsLauncher.launch(missingPermissions.toTypedArray())
         } else {
-            // Permission already granted, get the location
-            //LocationTrackingService.getLastKnownLocation(this.fusedLocationClient, this)
+            startLocationService()
         }
     }
 
-    private val requestPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { isGranted: Boolean ->
-        if (isGranted) {
-            // Permission is granted, start background service
-            val intent = Intent(this, LocationTrackingService::class.java)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForegroundService(intent)
-            } else {
-                startService(intent)
-            }
+    private fun startLocationService() {
+        val intent = Intent(this, LocationTrackingService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(intent)
         } else {
-            // Permission denied
+            startService(intent)
+        }
+    }
+
+    private val requestPermissionsLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        if (permissions[android.Manifest.permission.ACCESS_FINE_LOCATION] == true) {
+            startLocationService()
+        } else {
             Toast.makeText(applicationContext, "Location permission denied", Toast.LENGTH_SHORT).show()
         }
     }
