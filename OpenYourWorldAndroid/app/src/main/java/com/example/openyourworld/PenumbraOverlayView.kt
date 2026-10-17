@@ -14,7 +14,6 @@ import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
 import org.maplibre.android.geometry.LatLng
-import org.maplibre.android.geometry.LatLngBounds
 import org.maplibre.android.maps.MapLibreMap
 import java.util.Collections
 
@@ -24,7 +23,13 @@ class PenumbraOverlayView @JvmOverloads constructor(
     defStyleAttr: Int = 0
 ) : View(context, attrs, defStyleAttr) {
 
-    private val visitedAreas = Collections.synchronizedList(mutableListOf<Pair<LatLng, Double>>())
+    data class VisitedArea(
+        val latLng: LatLng,
+        val radiusMeters: Double,
+        var isCurrent: Boolean = false
+    )
+
+    private val visitedAreas = Collections.synchronizedList(mutableListOf<VisitedArea>())
 
     private var mapLibreMap: MapLibreMap? = null
 
@@ -43,6 +48,17 @@ class PenumbraOverlayView @JvmOverloads constructor(
         xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
     }
 
+    private val dotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.FILL
+        color = Color.argb(220, 76, 175, 80) // Green visited location dot
+    }
+
+    private val dotStrokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = 3f
+        color = Color.WHITE
+    }
+
     private val boundsRect = RectF()
 
     fun attachMap(map: MapLibreMap) {
@@ -53,17 +69,27 @@ class PenumbraOverlayView @JvmOverloads constructor(
         map.addOnCameraIdleListener {
             invalidate()
         }
+        postInvalidate()
         invalidate()
     }
 
-    fun addVisitedArea(center: LatLng, radiusMeters: Double) {
-        visitedAreas.add(Pair(center, radiusMeters))
+    fun addVisitedArea(center: LatLng, radiusMeters: Double, isCurrent: Boolean = false) {
+        synchronized(visitedAreas) {
+            if (isCurrent) {
+                for (area in visitedAreas) {
+                    area.isCurrent = false
+                }
+            }
+            visitedAreas.add(VisitedArea(center, radiusMeters, isCurrent))
+        }
         postInvalidate()
+        invalidate()
     }
 
     fun clear() {
         visitedAreas.clear()
         postInvalidate()
+        invalidate()
     }
 
     override fun onTouchEvent(event: MotionEvent?): Boolean {
@@ -87,48 +113,30 @@ class PenumbraOverlayView @JvmOverloads constructor(
         canvas.drawRect(0f, 0f, widthF, heightF, veilPaint)
 
         val projection = map.projection
-
-        // Get visible region bounds for fast viewport culling
-        val visibleBounds: LatLngBounds? = try {
-            projection.visibleRegion.latLngBounds
-        } catch (_: Exception) {
-            null
-        }
-
-        // Buffer factor to include points just outside screen edge
-        val bufferedBounds = visibleBounds?.let {
-            val latExpand = (it.latitudeSpan * 0.1).coerceAtLeast(0.001)
-            val lonExpand = (it.longitudeSpan * 0.1).coerceAtLeast(0.001)
-            LatLngBounds.from(
-                (it.latitudeNorth + latExpand).coerceAtMost(85.0),
-                (it.longitudeEast + lonExpand).coerceAtMost(180.0),
-                (it.latitudeSouth - latExpand).coerceAtLeast(-85.0),
-                (it.longitudeWest - lonExpand).coerceAtLeast(-180.0)
-            )
-        }
-
         val targetLat = map.cameraPosition.target?.latitude ?: 0.0
         val metersPerPixel = projection.getMetersPerPixelAtLatitude(targetLat)
 
         synchronized(visitedAreas) {
-            for ((latLng, radiusMeters) in visitedAreas) {
-                // Viewport check
-                if (bufferedBounds != null && !bufferedBounds.contains(latLng)) {
-                    continue
-                }
-
+            for (area in visitedAreas) {
+                val latLng = area.latLng
+                val radiusMeters = area.radiusMeters
                 val pixelPoint: PointF = projection.toScreenLocation(latLng)
 
                 val radiusPx = if (metersPerPixel > 0) {
                     (radiusMeters / metersPerPixel).toFloat()
                 } else {
-                    10f
+                    12f
                 }
 
-                // Minimum visible radius so revealed point is clear even at high zoom out
-                val effectiveRadiusPx = radiusPx.coerceAtLeast(8f)
+                val effectiveRadiusPx = radiusPx.coerceAtLeast(12f)
 
-                // Draw center clear hole
+                // Screen pixel bounds check with buffer
+                if (pixelPoint.x < -effectiveRadiusPx || pixelPoint.x > widthF + effectiveRadiusPx ||
+                    pixelPoint.y < -effectiveRadiusPx || pixelPoint.y > heightF + effectiveRadiusPx) {
+                    continue
+                }
+
+                // Erase center clear hole in fog
                 canvas.drawCircle(pixelPoint.x, pixelPoint.y, effectiveRadiusPx * 0.7f, clearPaint)
 
                 // Draw feathered gradient edge
@@ -144,6 +152,13 @@ class PenumbraOverlayView @JvmOverloads constructor(
                 featherPaint.shader = gradient
                 canvas.drawCircle(pixelPoint.x, pixelPoint.y, effectiveRadiusPx, featherPaint)
                 featherPaint.shader = null
+
+                // Draw visible dot at the visited location center only if it is the current point
+                if (area.isCurrent) {
+                    val dotRadiusPx = (effectiveRadiusPx * 0.25f).coerceIn(6f, 16f)
+                    canvas.drawCircle(pixelPoint.x, pixelPoint.y, dotRadiusPx, dotPaint)
+                    canvas.drawCircle(pixelPoint.x, pixelPoint.y, dotRadiusPx, dotStrokePaint)
+                }
             }
         }
 

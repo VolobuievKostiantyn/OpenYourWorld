@@ -119,8 +119,25 @@ class FirstFragment : Fragment() {
             Log.d(TAG, "Button press — live lat=$lat lon=$lon")
 
             if (lat != 0.0 && lon != 0.0) {
+                drawPoint(lat, lon, POINT_RADIUS_METERS, isCurrent = true)
                 val currentZoom = mapLibreMap?.cameraPosition?.zoom ?: DEFAULT_ZOOM
                 setPositionMarker(lat, lon, currentZoom)
+            } else {
+                if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                    com.google.android.gms.location.LocationServices.getFusedLocationProviderClient(requireContext())
+                        .lastLocation
+                        .addOnSuccessListener { location ->
+                            if (location != null) {
+                                val lastLat = location.latitude
+                                val lastLon = location.longitude
+                                LocationTrackingService.latitude = lastLat
+                                LocationTrackingService.longitude = lastLon
+                                drawPoint(lastLat, lastLon, POINT_RADIUS_METERS, isCurrent = true)
+                                val currentZoom = mapLibreMap?.cameraPosition?.zoom ?: DEFAULT_ZOOM
+                                setPositionMarker(lastLat, lastLon, currentZoom)
+                            }
+                        }
+                }
             }
         }
 
@@ -134,7 +151,7 @@ class FirstFragment : Fragment() {
         val savedLocations = dbHelper.getAllLocations()
         penumbraOverlay.clear()
         for (loc in savedLocations) {
-            penumbraOverlay.addVisitedArea(LatLng(loc.latitude, loc.longitude), POINT_RADIUS_METERS)
+            penumbraOverlay.addVisitedArea(LatLng(loc.latitude, loc.longitude), POINT_RADIUS_METERS, isCurrent = false)
         }
         penumbraOverlay.invalidate()
         mapView.invalidate()
@@ -215,7 +232,7 @@ class FirstFragment : Fragment() {
 
             if (lat != 0.0 && lon != 0.0) {
                 Log.d(TAG, "New position drawn via broadcast lat=$lat lon=$lon")
-                drawPoint(lat, lon, POINT_RADIUS_METERS)
+                drawPoint(lat, lon, POINT_RADIUS_METERS, isCurrent = false)
 
                 if (isFirstFix) {
                     setPositionMarker(lat, lon, DEFAULT_ZOOM)
@@ -238,8 +255,8 @@ class FirstFragment : Fragment() {
         }
     }
 
-    private fun drawPoint(lat: Double, lon: Double, radiusMeters: Double) {
-        penumbraOverlay.addVisitedArea(LatLng(lat, lon), radiusMeters)
+    private fun drawPoint(lat: Double, lon: Double, radiusMeters: Double, isCurrent: Boolean = false) {
+        penumbraOverlay.addVisitedArea(LatLng(lat, lon), radiusMeters, isCurrent)
         penumbraOverlay.invalidate()
         mapView.invalidate()
     }
