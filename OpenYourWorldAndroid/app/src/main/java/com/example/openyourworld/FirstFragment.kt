@@ -41,7 +41,7 @@ import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
 
 private const val DEFAULT_ZOOM = 17.0
-private const val POINT_RADIUS_METERS = 10.0
+private const val POINT_RADIUS_METERS = 23.0
 
 class FirstFragment : Fragment() {
 
@@ -178,9 +178,11 @@ class FirstFragment : Fragment() {
             ContextCompat.RECEIVER_NOT_EXPORTED
         )
 
-        // Reload locations if map is ready
+        // Reload locations if map is ready (with a slight delay to allow MapLibre surface & projection to re-initialize after screen-on)
         if (mapLibreMap != null) {
-            loadHistoricalLocations()
+            view?.postDelayed({
+                loadHistoricalLocations()
+            }, 300)
         }
     }
 
