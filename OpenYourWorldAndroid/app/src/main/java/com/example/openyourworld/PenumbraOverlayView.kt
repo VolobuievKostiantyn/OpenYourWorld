@@ -63,9 +63,6 @@ class PenumbraOverlayView @JvmOverloads constructor(
 
     fun attachMap(map: MapLibreMap) {
         this.mapLibreMap = map
-        map.addOnCameraMoveListener {
-            invalidate()
-        }
         map.addOnCameraIdleListener {
             invalidate()
         }

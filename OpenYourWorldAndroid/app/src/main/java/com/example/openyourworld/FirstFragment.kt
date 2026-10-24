@@ -41,7 +41,7 @@ import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
 
 private const val DEFAULT_ZOOM = 17.0
-private const val POINT_RADIUS_METERS = 23.0
+private const val POINT_RADIUS_METERS = 100.0
 
 class FirstFragment : Fragment() {
 
@@ -227,20 +227,36 @@ class FirstFragment : Fragment() {
         _binding = null
     }
 
+    private var lastDrawnLatLng: LatLng? = null
+
     private val locationReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             val lat = intent?.getDoubleExtra("lat", 0.0) ?: return
             val lon = intent.getDoubleExtra("lon", 0.0)
 
             if (lat != 0.0 && lon != 0.0) {
-                Log.d(TAG, "New position drawn via broadcast lat=$lat lon=$lon")
-                drawPoint(lat, lon, POINT_RADIUS_METERS, isCurrent = false)
-
                 if (isFirstFix) {
                     setPositionMarker(lat, lon, DEFAULT_ZOOM)
                     isFirstFix = false
                 } else {
                     updateMarkerOnly(lat, lon)
+                }
+
+                val shouldDrawPoint = if (lastDrawnLatLng == null) {
+                    true
+                } else {
+                    val results = FloatArray(1)
+                    android.location.Location.distanceBetween(
+                        lastDrawnLatLng!!.latitude, lastDrawnLatLng!!.longitude,
+                        lat, lon, results
+                    )
+                    results[0] > 3f // meters
+                }
+
+                if (shouldDrawPoint) {
+                    lastDrawnLatLng = LatLng(lat, lon)
+                    Log.d(TAG, "New position drawn via broadcast lat=$lat lon=$lon")
+                    drawPoint(lat, lon, POINT_RADIUS_METERS, isCurrent = false)
                 }
             }
         }
@@ -250,7 +266,6 @@ class FirstFragment : Fragment() {
         val latLng = LatLng(lat, lon)
         if (currentMarker != null) {
             currentMarker?.position = latLng
-            mapView.invalidate()
         } else {
             val zoom = mapLibreMap?.cameraPosition?.zoom ?: DEFAULT_ZOOM
             setPositionMarker(lat, lon, zoom)
@@ -260,7 +275,6 @@ class FirstFragment : Fragment() {
     private fun drawPoint(lat: Double, lon: Double, radiusMeters: Double, isCurrent: Boolean = false) {
         penumbraOverlay.addVisitedArea(LatLng(lat, lon), radiusMeters, isCurrent)
         penumbraOverlay.invalidate()
-        mapView.invalidate()
     }
 
     private fun setPositionMarker(latitude: Double, longitude: Double, zoom: Double) {
