@@ -40,7 +40,7 @@ import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
 
-private const val DEFAULT_ZOOM = 17.0
+private const val DEFAULT_ZOOM = 20.0
 private const val POINT_RADIUS_METERS = 100.0
 
 class FirstFragment : Fragment() {
