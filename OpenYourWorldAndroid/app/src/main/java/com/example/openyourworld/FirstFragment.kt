@@ -242,21 +242,30 @@ class FirstFragment : Fragment() {
                     updateMarkerOnly(lat, lon)
                 }
 
-                val shouldDrawPoint = if (lastDrawnLatLng == null) {
-                    true
+                if (lastDrawnLatLng == null) {
+                    lastDrawnLatLng = LatLng(lat, lon)
+                    drawPoint(lat, lon, POINT_RADIUS_METERS, isCurrent = false)
                 } else {
                     val results = FloatArray(1)
                     android.location.Location.distanceBetween(
                         lastDrawnLatLng!!.latitude, lastDrawnLatLng!!.longitude,
                         lat, lon, results
                     )
-                    results[0] > 3f // meters
-                }
+                    val distance = results[0]
 
-                if (shouldDrawPoint) {
-                    lastDrawnLatLng = LatLng(lat, lon)
-                    Log.d(TAG, "New position drawn via broadcast lat=$lat lon=$lon")
-                    drawPoint(lat, lon, POINT_RADIUS_METERS, isCurrent = false)
+                    if (distance > 1f) {
+                        // Interpolate intermediate points every 5 meters to form a continuous trace
+                        val stepSizeMeters = 5f
+                        val steps = (distance / stepSizeMeters).toInt().coerceAtLeast(1)
+                        for (i in 1..steps) {
+                            val fraction = i.toFloat() / steps
+                            val interpLat = lastDrawnLatLng!!.latitude + (lat - lastDrawnLatLng!!.latitude) * fraction
+                            val interpLon = lastDrawnLatLng!!.longitude + (lon - lastDrawnLatLng!!.longitude) * fraction
+                            val isLastStep = (i == steps)
+                            drawPoint(interpLat, interpLon, POINT_RADIUS_METERS, isCurrent = isLastStep)
+                        }
+                        lastDrawnLatLng = LatLng(lat, lon)
+                    }
                 }
             }
         }
