@@ -150,11 +150,38 @@ class FirstFragment : Fragment() {
     private fun loadHistoricalLocations() {
         val savedLocations = dbHelper.getAllLocations()
         penumbraOverlay.clear()
+
+        var lastLatLng: LatLng? = null
         for (loc in savedLocations) {
-            penumbraOverlay.addVisitedArea(LatLng(loc.latitude, loc.longitude), POINT_RADIUS_METERS, isCurrent = false)
+            val currentLatLng = LatLng(loc.latitude, loc.longitude)
+            val prev = lastLatLng
+            if (prev == null) {
+                penumbraOverlay.addVisitedArea(currentLatLng, POINT_RADIUS_METERS, isCurrent = false)
+            } else {
+                val results = FloatArray(1)
+                android.location.Location.distanceBetween(
+                    prev.latitude, prev.longitude,
+                    currentLatLng.latitude, currentLatLng.longitude,
+                    results
+                )
+                val distance = results[0]
+                if (distance > 1f) {
+                    val stepSizeMeters = 5f
+                    val steps = (distance / stepSizeMeters).toInt().coerceAtLeast(1)
+                    for (i in 1..steps) {
+                        val fraction = i.toFloat() / steps
+                        val interpLat = prev.latitude + (currentLatLng.latitude - prev.latitude) * fraction
+                        val interpLon = prev.longitude + (currentLatLng.longitude - prev.longitude) * fraction
+                        penumbraOverlay.addVisitedArea(LatLng(interpLat, interpLon), POINT_RADIUS_METERS, isCurrent = false)
+                    }
+                } else {
+                    penumbraOverlay.addVisitedArea(currentLatLng, POINT_RADIUS_METERS, isCurrent = false)
+                }
+            }
+            lastLatLng = currentLatLng
         }
+
         penumbraOverlay.invalidate()
-        mapView.invalidate()
     }
 
     override fun onResume() {
