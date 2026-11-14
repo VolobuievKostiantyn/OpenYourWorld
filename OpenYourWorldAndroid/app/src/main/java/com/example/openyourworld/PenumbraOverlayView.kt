@@ -60,10 +60,16 @@ class PenumbraOverlayView @JvmOverloads constructor(
     }
 
     private val boundsRect = RectF()
+    private var isCameraMoving = false
 
     fun attachMap(map: MapLibreMap) {
         this.mapLibreMap = map
+        map.addOnCameraMoveListener {
+            isCameraMoving = true
+            invalidate()
+        }
         map.addOnCameraIdleListener {
+            isCameraMoving = false
             invalidate()
         }
         postInvalidate()
@@ -136,19 +142,21 @@ class PenumbraOverlayView @JvmOverloads constructor(
                 // Erase center clear hole in fog
                 canvas.drawCircle(pixelPoint.x, pixelPoint.y, effectiveRadiusPx * 0.7f, clearPaint)
 
-                // Draw feathered gradient edge
-                val gradient = RadialGradient(
-                    pixelPoint.x,
-                    pixelPoint.y,
-                    effectiveRadiusPx,
-                    intArrayOf(Color.BLACK, Color.TRANSPARENT),
-                    floatArrayOf(0f, 1f),
-                    Shader.TileMode.CLAMP
-                )
+                // Draw feathered gradient edge only when camera is NOT moving
+                if (!isCameraMoving) {
+                    val gradient = RadialGradient(
+                        pixelPoint.x,
+                        pixelPoint.y,
+                        effectiveRadiusPx,
+                        intArrayOf(Color.BLACK, Color.TRANSPARENT),
+                        floatArrayOf(0f, 1f),
+                        Shader.TileMode.CLAMP
+                    )
 
-                featherPaint.shader = gradient
-                canvas.drawCircle(pixelPoint.x, pixelPoint.y, effectiveRadiusPx, featherPaint)
-                featherPaint.shader = null
+                    featherPaint.shader = gradient
+                    canvas.drawCircle(pixelPoint.x, pixelPoint.y, effectiveRadiusPx, featherPaint)
+                    featherPaint.shader = null
+                }
 
                 // Draw visible dot at the visited location center only if it is the current point
                 if (area.isCurrent) {
