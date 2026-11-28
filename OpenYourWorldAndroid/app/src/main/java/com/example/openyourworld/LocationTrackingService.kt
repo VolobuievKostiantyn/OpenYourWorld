@@ -46,7 +46,7 @@ class LocationTrackingService : Service() {
     private lateinit var fusedClient: FusedLocationProviderClient
     private lateinit var callback: LocationCallback
     private lateinit var dbHelper: LocationDatabaseHelper
-//    private var lastSavedLocation: Location? = null
+    private var lastValidLocation: android.location.Location? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         // Calling this here prevents the "ForegroundServiceDidNotStartInTimeException"
@@ -65,11 +65,31 @@ class LocationTrackingService : Service() {
             override fun onLocationResult(result: LocationResult) {
                 val loc = result.lastLocation ?: return
 
-                // Todo: Only saves meaningful movement and reduces database writes.
-//                if (lastSavedLocation == null || loc.distanceTo(lastSavedLocation!!) > 5f) {
-//                    Thread { dbHelper.insertLocation(loc.latitude, loc.longitude) }.start()
-//                    lastSavedLocation = loc
-//                }
+                // Filter wildly jumping GPS glitch points
+                if (lastValidLocation != null) {
+                    val distance = loc.distanceTo(lastValidLocation!!)
+                    val timeDeltaMs = loc.time - lastValidLocation!!.time
+
+                    // If more than 30 seconds have passed, reset baseline (user traveled or resumed after break)
+                    if (timeDeltaMs > 30_000L) {
+                        lastValidLocation = loc
+                    } else {
+                        if (distance > 500f) {
+                            Log.d(TAG, "Discarding GPS jump/outlier: distance=$distance meters")
+                            return
+                        }
+
+                        if (timeDeltaMs > 0) {
+                            val speedMps = distance / (timeDeltaMs / 1000f)
+                            if (speedMps > 70f) { // > 250 km/h
+                                Log.d(TAG, "Discarding high speed outlier: speed=${speedMps * 3.6} km/h")
+                                return
+                            }
+                        }
+                    }
+                }
+
+                lastValidLocation = loc
 
                 latitude = loc.latitude
                 longitude = loc.longitude
